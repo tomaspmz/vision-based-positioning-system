@@ -7,9 +7,13 @@
 
 ---
 
+![Validation Predictions vs Ground Truth](assets/val_pred_vs_actual.png)
+
+---
+
 ## Overview
 
-VBAPS is a Terrain Relative Navigation (TRN) prototype that estimates the **absolute geographic position of a UAV** using only a downward-facing camera feed — no GPS required. The system processes top-down satellite imagery and frames position estimation as a **multi-class geographic classification problem**, then recovers coordinates from the predicted class centre (argmax).
+VBAPS is a Terrain Relative Navigation (TRN) prototype that estimates the **absolute geographic position of a UAV** using only a downward-facing camera feed. The system processes top-down satellite imagery and frames position estimation as a **multi-class geographic classification problem**, then recovers coordinates from the predicted class centre (argmax).
 
 This repository contains the full pipeline: data acquisition from Google Earth Engine, H3 spatial indexing, model training, temporal-domain evaluation, and geographic visualizations with satellite basemaps.
 
@@ -25,7 +29,7 @@ GPS-denied navigation is a critical capability gap for UAVs operating in contest
 
 ### 1. Geographic Classification (PlaNet Paradigm)
 
-The core framing follows **PlaNet** (Weyand et al., 2016), which pioneered the now-standard approach of treating visual geolocation as classification over geographic cells rather than regression. The Earth (or in our case, the Persian Gulf coastline) is subdivided into discrete spatial buckets, and the model learns to classify which bucket a given image belongs to.
+The core framing follows **PlaNet** (Weyand et al., 2016), which pioneered the approach of treating visual geolocation as classification over geographic cells rather than regression. The Earth (or in our case, the Persian Gulf coastline) is subdivided into discrete spatial buckets, and the model learns to classify which bucket a given image belongs to.
 
 > *"We show that using a very large amount of geotagged photos we can train a probabilistic model to predict the location of any photo."*  
 > — Weyand et al., **PlaNet - Photo Geolocation with Convolutional Neural Networks**, ECCV 2016
@@ -36,11 +40,11 @@ Rather than arbitrary rectangular grid cells (as used in PlaNet), we use **Uber'
 
 ### 3. Entropy Filtering — Sparse Map
 
-To prevent visual aliasing — where open ocean or featureless desert tiles are visually indistinguishable — we apply a **Shannon Entropy filter** (threshold ≥ 5.2 bits) to discard low-feature regions. This restricts the learnable map to structurally rich areas (coastlines, urban grids, islands, harbors), analogous to feature-point selection in classical SLAM.
+To prevent visual aliasing, where open ocean or featureless desert tiles are visually indistinguishable — we apply a **Shannon Entropy filter** (threshold ≥ 5.2 bits) to discard low-feature regions. This restricts the learnable map to structurally rich areas (coastlines, urban grids, islands, harbors), analogous to feature-point selection in classical SLAM.
 
 ### 4. SeCo Pretrained Backbone
 
-The visual backbone is a **ResNet-50 pretrained with Seasonal Contrast (SeCo)** (Mañas et al., 2021), a self-supervised learning method specifically designed for **Sentinel-2 satellite imagery**. SeCo pretrains on 1 million geo-referenced satellite images from different seasons, learning features invariant to seasonal change — directly relevant to our temporal test strategy.
+The visual backbone is a **ResNet-50 pretrained with Seasonal Contrast (SeCo)** (Mañas et al., 2021), a self-supervised learning method specifically designed for **Sentinel-2 satellite imagery**. SeCo pretrains on 1 million geo-referenced satellite images from different seasons, learning features invariant to seasonal change, directly relevant to our temporal test strategy.
 
 Using SeCo rather than ImageNet-pretrained weights is a deliberate design choice: CNN features trained on street-level photographs are suboptimal for overhead multispectral imagery. SeCo features already encode spectral and textural patterns specific to the Sentinel-2 sensor.
 
@@ -51,9 +55,9 @@ In Iteration 1, the backbone is **fully frozen** — only the final classificati
 
 ### 5. UAV Feed Simulation — GSD Preservation
 
-A critical implementation detail that separates this from naive approaches: the UAV camera footprint is simulated by extracting a **random 224×224 pixel crop** from a 512×512 master tile, with **no resizing**. This preserves the native **10 m/px Ground Sample Distance (GSD)** of the Sentinel-2 sensor, meaning the model always sees exactly a 2.24 km² footprint — the optical field of view of a UAV at the corresponding altitude.
+The UAV camera footprint is simulated by extracting a **random 224×224 pixel crop** from a 512×512 master tile, with **no resizing**. This preserves the native **10 m/px Ground Sample Distance (GSD)** of the Sentinel-2 sensor, meaning the model always sees exactly a 2.24 km² footprint, the optical field of view of a UAV at the corresponding altitude.
 
-Furthermore, each crop is extracted at a **random heading angle** (0–360°, continuous) using `cv2.warpAffine`, removing rotational invariance. Over thousands of training epochs, each master tile yields thousands of unique rotated perspectives — simulating the natural yaw variation of a UAV in flight.
+Furthermore, each crop is extracted at a **random heading angle** (0–360°, continuous) using `cv2.warpAffine`, removing rotational invariance. Over thousands of training epochs, each master tile yields thousands of unique rotated perspectives, simulating the natural yaw variation of a UAV in flight.
 
 ### 6. Temporal Domain Adaptation
 
@@ -62,7 +66,7 @@ The training set uses **2022 Sentinel-2 imagery**. The test set is independently
 - New construction (UAE develops extremely rapidly; palm islands, towers, reclaimed land)
 - Atmospheric and illumination differences
 
-Additionally, test images undergo a **random rotation** (0–360°, continuous) at inference time, verifying that the model has learned true rotational invariance from the random-heading crops used during training. This is a stricter evaluation than most academic geolocation benchmarks, which test on the same temporal distribution and canonical orientation as training.
+Additionally, test images undergo a **random rotation** (0–360°, continuous) at inference time, verifying that the model has learned true rotational invariance from the random-heading crops used during training.
 
 ### 7. Coordinate Recovery — Argmax Class Centre
 
@@ -70,7 +74,7 @@ The model outputs a probability distribution over all N hexagonal classes. The p
 
 ### 8. Random Baseline Comparison
 
-To validate that the model is learning meaningful spatial features, each evaluation reports a **random baseline**: the expected haversine distance if every prediction were a randomly chosen class. This provides an immediate sanity check — if the model's mean distance is well below the random baseline, it is learning, not memorising noise.
+To validate that the model is learning meaningful spatial features, each evaluation reports a **random baseline**: the expected haversine distance if every prediction were a randomly chosen class. This provides an immediate sanity check if the model's mean distance is well below the random baseline, it is learning, not memorising noise.
 
 ---
 
@@ -105,6 +109,10 @@ Shannon Entropy Filter (≥ 5.2) → Sparse Map (4,498 classes)
 | Mean Distance | **39.8 km** | **41.0 km** | ~206–222 km |
 | Median Distance | — | — | — |
 
+![Test Error Distribution](assets/test_2024_error_hist.png)
+
+![Test Prediction Grid](assets/test_2024_prediction_grid.png)
+
 The model achieves **~5× lower positional error** than random guessing. Test set performance includes both temporal domain shift (2022→2024 imagery) and random rotation, confirming learned rotational invariance. The relatively small gap between validation and test metrics suggests the SeCo features generalise well across time.
 
 ---
@@ -115,7 +123,7 @@ Two metrics are reported, each translating model output into a physically interp
 
 **Top-K Accuracy** — Because geography is a continuum and adjacent hexagons look similar, Top-1 is a strict lower bound. Top-5 accuracy represents whether the model's uncertainty is geographically localised (all candidates are near the true location).
 
-**Mean Haversine Distance (km)** — The primary aerospace metric. Uses the argmax class centre (not a centroid average) to compute kilometers of positional error via the haversine formula. A random baseline is reported alongside, computed as the expected distance between two randomly chosen class centres, providing a clear "is the model learning?" benchmark.
+**Mean Haversine Distance (km)** — Uses the argmax class centre (not a centroid average) to compute kilometers of positional error via the haversine formula. A random baseline is reported alongside, computed as the expected distance between two randomly chosen class centres, providing a clear "is the model learning?" benchmark.
 
 ---
 

@@ -100,7 +100,7 @@ This strategy preserves the SeCo features in early layers (which are effectively
 | Top-1 | **90.5%** | **72.0%** | 0.02% |
 | Top-3 | **97.1%** | **83.0%** | 0.07% |
 | Top-5 | **98.2%** | **85.0%** | 0.11% |
-| Mean Distance | **4.26 km** | **10.91 km** | ~206–222 km |
+| Mean Distance | **4.26 km** | **9.19 km** | ~206–222 km |
 
 <p align="center">
   <img src="assets/test_2024_error_hist.png" width="550">

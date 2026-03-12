@@ -10,6 +10,10 @@ import argparse
 import os
 import json
 import time
+import warnings
+
+warnings.filterwarnings("ignore", message=".*NotOpenSSLWarning.*")
+warnings.filterwarnings("ignore", category=Warning, module="urllib3")
 
 import numpy as np
 import torch
@@ -18,7 +22,7 @@ from torch.optim import SGD
 from tqdm.auto import tqdm
 
 from dataset import get_dataloaders, get_test_loader, hex_center_coords
-from model import build_model
+from model import build_model, unfreeze_layers, layers_for_iteration
 from utils import haversine_km, softmax_weighted_centroid, topk_accuracy
 from visualize import generate_all_plots
 
@@ -104,16 +108,25 @@ def validate(model, loader, criterion, device, coords):
 
 def main():
     parser = argparse.ArgumentParser(description="Train VBAPS classifier head")
+    parser.add_argument("--iteration", type=int, default=1,
+                        help="Training iteration (1=frozen backbone, 2=unfreeze layer4, …)")
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Path to checkpoint to warm-start from (default: iter{N-1}_best.pt)")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--lr", type=float, default=0.01)
+    parser.add_argument("--lr", type=float, default=None,
+                        help="Learning rate (default: 0.01 for iter1, 1e-4 for iter2+)")
     parser.add_argument("--momentum", type=float, default=0.9)
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--label_smoothing", type=float, default=0.1)
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--eval-only", action="store_true",
-                        help="Skip training; load best_model.pt and evaluate")
+                        help="Skip training; load iterN_best.pt and evaluate")
     args = parser.parse_args()
+
+    # LR defaults per iteration
+    if args.lr is None:
+        args.lr = 0.01 if args.iteration == 1 else 1e-4
 
     # Device
     if torch.backends.mps.is_available():
@@ -131,14 +144,37 @@ def main():
     num_classes = meta["num_classes"]
     coords = meta["coords"]
 
-    # Checkpoint path
+    # Checkpoint path for this iteration
     ckpt_dir = os.path.join(BASE_DIR, "checkpoints")
     os.makedirs(ckpt_dir, exist_ok=True)
-    best_path = os.path.join(ckpt_dir, "best_model.pt")
+    best_path = os.path.join(ckpt_dir, f"iter{args.iteration}_best.pt")
 
-    # Model
+    # Model — always build with backbone frozen, then selectively unfreeze
     model = build_model(num_classes=num_classes, freeze_backbone=True)
     model = model.to(device)
+
+    # Warm-start from a previous iteration's checkpoint (skip in eval-only mode)
+    if (args.iteration > 1 or args.resume) and not args.eval_only:
+        if args.resume:
+            load_path = args.resume
+        else:
+            load_path = os.path.join(ckpt_dir, f"iter{args.iteration - 1}_best.pt")
+        if not os.path.exists(load_path):
+            raise FileNotFoundError(
+                f"[train] Warm-start checkpoint not found: {load_path}\n"
+                f"        Run iteration {args.iteration - 1} first, or pass --resume <path>."
+            )
+        print(f"[train] Loading weights from {load_path}")
+        prev_ckpt = torch.load(load_path, map_location=device, weights_only=False)
+        model.load_state_dict(prev_ckpt["model_state_dict"])
+        print(f"[train] Warm-start from epoch {prev_ckpt['epoch']}, "
+              f"val top-1={prev_ckpt['val_metrics']['top1']:.4f}")
+
+    # Unfreeze the layers appropriate for this iteration.
+    layers = layers_for_iteration(args.iteration)
+    backbone_layers = [l for l in layers if l != "fc"] if layers else []
+    if layers:
+        unfreeze_layers(model, layers)
 
     # Loss (used in both training and eval)
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
@@ -189,15 +225,64 @@ def main():
         return
 
     # Training mode
-    optimizer = SGD(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay,
-    )
+    if args.iteration > 1:
+        # Full fine-tune: AdamW with layerwise LR decay.
+        # Head gets base LR; each earlier layer group gets decay_factor^depth lower.
+        decay = 0.1  # each layer group 10x lower than the next
+        layer_groups = [
+            ("fc.",     1.0),          # head
+            ("layer4.", decay),        # layer4
+            ("layer3.", decay**2),     # layer3
+            ("layer2.", decay**3),     # layer2
+            ("layer1.", decay**4),     # layer1
+        ]
+        # Anything else (conv1, bn1) gets the deepest decay
+        grouped_params = {prefix: [] for prefix, _ in layer_groups}
+        grouped_params["_rest"] = []
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
+            placed = False
+            for prefix, _ in layer_groups:
+                if name.startswith(prefix):
+                    grouped_params[prefix].append(param)
+                    placed = True
+                    break
+            if not placed:
+                grouped_params["_rest"].append(param)
 
-    # LR scheduler — cosine annealing over total epochs
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=args.epochs, eta_min=1e-5,
-    )
+        param_groups = []
+        for prefix, mult in layer_groups:
+            if grouped_params[prefix]:
+                param_groups.append({"params": grouped_params[prefix], "lr": args.lr * mult})
+        if grouped_params["_rest"]:
+            param_groups.append({"params": grouped_params["_rest"], "lr": args.lr * decay**5})
+
+        optimizer = torch.optim.AdamW(param_groups, weight_decay=args.weight_decay)
+
+        print(f"[train] AdamW layerwise LR decay (base={args.lr:.1e}, decay={decay})")
+        for pg in param_groups:
+            n = sum(p.numel() for p in pg['params'])
+            print(f"    LR={pg['lr']:.1e}  params={n:,}")
+    else:
+        optimizer = SGD(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay,
+        )
+
+    # LR scheduler
+    if args.iteration > 1:
+        # Linear warmup for 2 epochs, then cosine decay
+        warmup_epochs = 2
+        def lr_lambda(epoch):
+            if epoch < warmup_epochs:
+                return (epoch + 1) / warmup_epochs
+            return 0.5 * (1 + np.cos(np.pi * (epoch - warmup_epochs) / (args.epochs - warmup_epochs)))
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    else:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=args.epochs, eta_min=1e-5,
+        )
 
     best_top1 = 0.0
 

@@ -128,3 +128,29 @@ def build_model(num_classes: int, freeze_backbone: bool = True):
         print(f"[model] Backbone frozen.  Trainable: {trainable:,} / {total:,}")
 
     return model
+
+
+# Layers/submodules to unfreeze for each iteration.
+_ITER_UNFREEZE = {
+    2: ["conv1", "bn1", "layer1", "layer2", "layer3", "layer4", "fc"],  # full fine-tune
+}
+
+
+def unfreeze_layers(model, layer_names: list[str]) -> None:
+    """Unfreeze the named ResNet layers/submodules so they receive gradients.
+
+    Supports both top-level names ('layer4') and indexed submodules ('layer4.2').
+    """
+    for name, param in model.named_parameters():
+        for target in layer_names:
+            if name == target or name.startswith(target + "."):
+                param.requires_grad = True
+                break
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total = sum(p.numel() for p in model.parameters())
+    print(f"[model] Unfrozen {layer_names}.  Trainable: {trainable:,} / {total:,}")
+
+
+def layers_for_iteration(iteration: int) -> list[str]:
+    """Return the layer names to unfreeze for the given training iteration."""
+    return _ITER_UNFREEZE.get(iteration, [])

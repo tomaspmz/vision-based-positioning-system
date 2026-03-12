@@ -8,6 +8,7 @@ the native 10 m/px GSD (REQ-2.2.2).
 
 import os
 import glob
+import warnings
 import h3
 import cv2
 import numpy as np
@@ -18,6 +19,11 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+
+
+def _worker_init(worker_id):
+    """Suppress noisy urllib3 SSL warnings in DataLoader worker processes."""
+    warnings.filterwarnings("ignore", category=Warning, module="urllib3")
 
 # Discover tiles on disk and build the class map
 
@@ -238,10 +244,12 @@ def get_dataloaders(batch_size=32, val_ratio=0.2, seed=42, num_workers=0):
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, shuffle=True,
         num_workers=num_workers, pin_memory=pin,
+        worker_init_fn=_worker_init if num_workers > 0 else None,
     )
     val_loader = DataLoader(
         val_ds, batch_size=batch_size, shuffle=False,
         num_workers=num_workers, pin_memory=pin,
+        worker_init_fn=_worker_init if num_workers > 0 else None,
     )
 
     meta = {
@@ -260,4 +268,5 @@ def get_test_loader(hex_to_idx, batch_size=32, num_workers=0):
     print(f"[dataset] Test set: {len(ds)} images")
     pin = torch.cuda.is_available()
     return DataLoader(ds, batch_size=batch_size, shuffle=False,
-                      num_workers=num_workers, pin_memory=pin)
+                      num_workers=num_workers, pin_memory=pin,
+                      worker_init_fn=_worker_init if num_workers > 0 else None)

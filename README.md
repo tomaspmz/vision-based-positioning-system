@@ -178,11 +178,15 @@ VBAPS/
 ├── scripts/                # Data acquisition
 │   ├── data_mining.py      # Download Sentinel-2 training tiles via GEE
 │   └── fetch_test_set.py   # Download 2024 test tiles via GEE
-├── data/                   # Downloaded imagery & label CSV (gitignored)
-├── checkpoints/            # Model weights (gitignored)
+├── data/                   # Imagery & labels (not included — see below)
+├── checkpoints/            # Model weights (not included — see below)
 ├── assets/                 # README images
 └── README.md
 ```
+
+> **Why are `data/` and `checkpoints/` not in the repo?**
+> The training imagery (~2.4 GB) and model checkpoints (160–447 MB each) exceed GitHub's file-size limits.
+> Both are fully reproducible: run `scripts/data_mining.py` and `scripts/fetch_test_set.py` to download the satellite tiles from Google Earth Engine, then follow the training steps below to generate the checkpoints.
 
 ---
 

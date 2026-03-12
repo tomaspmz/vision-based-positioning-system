@@ -181,12 +181,36 @@ VBAPS/
 ├── data/                   # Imagery & labels (not included — see below)
 ├── checkpoints/            # Model weights (not included — see below)
 ├── assets/                 # README images
+├── requirements.txt        # Python dependencies
 └── README.md
 ```
 
 > **Why are `data/` and `checkpoints/` not in the repo?**
 > The training imagery (~2.4 GB) and model checkpoints (160–447 MB each) exceed GitHub's file-size limits.
 > Both are fully reproducible: run `scripts/data_mining.py` and `scripts/fetch_test_set.py` to download the satellite tiles from Google Earth Engine, then follow the training steps below to generate the checkpoints.
+
+---
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/tomaspmz/vision-based-positioning-system.git
+cd vision-based-positioning-system
+
+# Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+You will also need a [Google Earth Engine](https://earthengine.google.com/) project for data acquisition. Create a `.env` file in the project root:
+
+```
+GEE_PROJECT=your-gee-project-id
+```
 
 ---
 

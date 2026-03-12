@@ -106,7 +106,7 @@ Shannon Entropy Filter (≥ 5.2) → Sparse Map (4,498 classes)
 | Top-1 | **44.3%** | **31.0%** | 0.02% |
 | Top-3 | **66.1%** | **52.0%** | 0.07% |
 | Top-5 | **75.2%** | **62.0%** | 0.11% |
-| Mean Distance | **39.8 km** | **41.0 km** | ~206–222 km |
+| Mean Distance | **39.8 km** | **45.3 km** | ~206–222 km |
 | Median Distance | — | — | — |
 
 ![Test Error Distribution](assets/test_2024_error_hist.png)

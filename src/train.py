@@ -8,9 +8,12 @@ Usage:
 
 import argparse
 import os
+import sys
 import json
 import time
 import warnings
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 warnings.filterwarnings("ignore", message=".*NotOpenSSLWarning.*")
 warnings.filterwarnings("ignore", category=Warning, module="urllib3")
@@ -26,7 +29,7 @@ from model import build_model, unfreeze_layers, layers_for_iteration
 from utils import haversine_km, softmax_weighted_centroid, topk_accuracy
 from visualize import generate_all_plots
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Training and validation loops
 

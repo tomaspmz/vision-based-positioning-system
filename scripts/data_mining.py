@@ -15,7 +15,7 @@ load_dotenv()
 GEE_PROJECT = os.environ["GEE_PROJECT"]
 
 # 1. Local Directory Setup
-base_dir = os.path.dirname(os.path.abspath(__file__))
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 local_data_dir = os.path.join(base_dir, 'data', 'raw_level7')
 os.makedirs(local_data_dir, exist_ok=True)
 

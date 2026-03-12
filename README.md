@@ -6,8 +6,10 @@
 
 ---
 
-![Validation Predictions vs Ground Truth](assets/val_pred_vs_actual.png)
-*Iteration 2 validation predictions (green = correct hexagon, red = misclassification) overlaid on Esri satellite basemap. Errors cluster in low-feature coastal and desert regions.*
+<p align="center">
+  <img src="assets/val_pred_vs_actual.png" width="700">
+</p>
+<p align="center"><em>Iteration 2 validation predictions (green = correct hexagon, red = misclassification) overlaid on Esri satellite basemap. Errors cluster in low-feature coastal and desert regions.</em></p>
 
 ---
 
@@ -100,11 +102,15 @@ This strategy preserves the SeCo features in early layers (which are effectively
 | Top-5 | **98.2%** | **85.0%** | 0.11% |
 | Mean Distance | **4.26 km** | **10.91 km** | ~206–222 km |
 
-![Test Error Distribution](assets/test_2024_error_hist.png)
-*Distribution of haversine distance errors on the 2024 test set. Most predictions fall within a single hexagon diameter (~2.5 km).*
+<p align="center">
+  <img src="assets/test_2024_error_hist.png" width="550">
+</p>
+<p align="center"><em>Distribution of haversine distance errors on the 2024 test set. Most predictions fall within a single hexagon diameter (~2.5 km).</em></p>
 
-![Test Prediction Grid](assets/test_2024_prediction_grid.png)
-*Sample test predictions: each pair shows the input 224×224 crop (left) alongside the full 512×512 master tile of the predicted hexagon (right). Green border = correct, red = incorrect.*
+<p align="center">
+  <img src="assets/test_2024_prediction_grid.png" width="700">
+</p>
+<p align="center"><em>Sample test predictions: each pair shows the input 224×224 crop (left) alongside the full 512×512 master tile of the predicted hexagon (right). Green border = correct, red = incorrect.</em></p>
 
 ### Analysis
 
@@ -159,26 +165,47 @@ The system's spatial resolution is determined by the **H3 hexagon level**. At Le
 
 ---
 
+## Project Structure
+
+```
+VBAPS/
+├── src/                    # Core modules
+│   ├── train.py            # Training & evaluation loop
+│   ├── model.py            # ResNet-50 + SeCo checkpoint loading
+│   ├── dataset.py          # H3 dataset & DataLoader construction
+│   ├── utils.py            # Haversine, softmax centroid, top-k metrics
+│   └── visualize.py        # Geographic scatter, error histogram, prediction grid
+├── scripts/                # Data acquisition
+│   ├── data_mining.py      # Download Sentinel-2 training tiles via GEE
+│   └── fetch_test_set.py   # Download 2024 test tiles via GEE
+├── data/                   # Downloaded imagery & label CSV (gitignored)
+├── checkpoints/            # Model weights (gitignored)
+├── assets/                 # README images
+└── README.md
+```
+
+---
+
 ## Usage
 
 ```bash
 # 1. Acquire training data (2022 Sentinel-2)
-python data_mining.py
+python scripts/data_mining.py
 
 # 2. Acquire test data (2024 Sentinel-2, same hexagons)
-python fetch_test_set.py --n 100
+python scripts/fetch_test_set.py --n 100
 
 # 3. Iteration 1 — frozen backbone, 200 epochs
-python train.py --iteration 1 --epochs 200 --batch_size 32 --lr 0.01
+python src/train.py --iteration 1 --epochs 200 --batch_size 32 --lr 0.01
 
 # 4. Iteration 2 — full fine-tune from iter1 checkpoint, 30 epochs
-python train.py --iteration 2 --epochs 30 --batch_size 32
+python src/train.py --iteration 2 --epochs 30 --batch_size 32
 
 # 5. Evaluate a specific iteration (loads iterN_best.pt, runs val + test, generates plots)
-python train.py --iteration 2 --eval-only
+python src/train.py --iteration 2 --eval-only
 
 # 6. Generate visualizations standalone
-python visualize.py --checkpoint checkpoints/iter2_best.pt
+python src/visualize.py --checkpoint checkpoints/iter2_best.pt
 ```
 
 ---

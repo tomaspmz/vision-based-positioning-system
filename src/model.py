@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CKPT_DIR = os.path.join(BASE_DIR, "checkpoints")
 SECO_FILENAME = "seco_resnet50_1m.ckpt"
 SECO_PATH = os.path.join(CKPT_DIR, SECO_FILENAME)

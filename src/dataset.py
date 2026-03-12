@@ -27,7 +27,7 @@ def _worker_init(worker_id):
 
 # Discover tiles on disk and build the class map
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_DIR = os.path.join(BASE_DIR, "data", "raw_level7")
 TEST_DIR = os.path.join(BASE_DIR, "data", "test_2024")
 

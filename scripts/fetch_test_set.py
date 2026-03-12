@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 load_dotenv()
 GEE_PROJECT = os.environ["GEE_PROJECT"]
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_DIR = os.path.join(BASE_DIR, "data", "raw_level7")
 TEST_DIR = os.path.join(BASE_DIR, "data", "test_2024")
 

@@ -10,7 +10,10 @@ Or imported and called from train.py.
 
 import argparse
 import os
+import sys
 import random
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 import torch
@@ -27,7 +30,7 @@ from dataset import (build_class_map, hex_center_coords,
 from model import build_model
 from utils import softmax_weighted_centroid, haversine_km
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIG_DIR = os.path.join(BASE_DIR, "figures")
 
 
